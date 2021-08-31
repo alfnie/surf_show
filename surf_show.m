@@ -781,7 +781,7 @@ surf_show_update;
                 [tfile_path,file_name,file_ext]=fileparts(filename);
                 switch(file_ext)
                     case {'.txt','.xls'}
-                        newp=surf_show_CreateVolume(filename);
+                        newp=surf_show_CreateVolume(filename,varargin{:});
                     case {'.img','.nii','.mgh','.mgz'}
                         if nargin<=1, newp=surf_volume(filename);
                         else          newp=surf_volume(filename,false,varargin{:});
@@ -925,8 +925,8 @@ surf_show_update;
                     temp_scale=[0,1];
                     temp_names={};
                 case {'.img','.nii','.mgh','.mgz'}
-                    temp_rois=MRIread(roifile,true);
-                    nvox=prod(temp_rois.volsize);
+                    vroi=spm_vol(char(roifile));
+                    nvox=prod(vroi(1).dim);
                     if any(arrayfun(@(i)any(nvox==[1,2]*size(SURFACES(i).patch.vertices,1)),SURFACE_SELECTED)) % nifti surface files
                         %temp_rois=MRIread(roifile);
                         %temp_rois=permute(temp_rois.vol,[2,1,3]);
@@ -1665,11 +1665,14 @@ surf_show_update;
         end
     end
         
-    function newp=surf_show_CreateVolume(filename)
+    function newp=surf_show_CreateVolume(filename,varargin)
         persistent lastchoice;
         if isempty(lastchoice), lastchoice=''; end
         newp=CreateVolume('',filename,'');
         if numel(SURFACES)>0
+            if numel(varargin)>=1&&~isempty(varargin{1}), lastchoice=varargin{1}; end
+            if numel(varargin)>=2&&~isempty(varargin{2}), doprojecttomatched=varargin{2}; else doprojecttomatched=false; end
+            if numel(varargin)>=3&&~isempty(varargin{3}), doprojecttoclosest=varargin{3}; else doprojecttoclosest=false; end
             surffullnames=[{SURFACES.filename},{fullfile(mfilename,'surf','lh.pial.surf'),fullfile(mfilename,'surf','rh.pial.surf')}];
             surfnames=[{SURFACES.name}];%,{'lh.pial.surf','rh.pial.surf'}];
             [surfnames,surfidx]=unique(surfnames,'first');
@@ -1677,13 +1680,14 @@ surf_show_update;
             [nill,value]=ismember(lastchoice,surfnames);
             value=value(value>0);
             if isempty(value)&&numel(surfnames)==1, value=1; end
+            if isempty(value), value=1:numel(surfnames); end
             thfig=figure('units','norm','position',[.4,.5,.3,.2],'color','w','name','Transform spatial coordinates','numbertitle','off','menubar','none');
-            ht3=uicontrol('style','checkbox','units','norm','position',[.15,.25,.75,.1],'string','Project to matched pial-surface vertices','backgroundcolor','w','horizontalalignment','left','value',0,'enable','off');
+            ht3=uicontrol('style','checkbox','units','norm','position',[.15,.25,.75,.1],'string','Project to matched pial-surface vertices','backgroundcolor','w','horizontalalignment','left','value',doprojecttomatched,'enable','off');
             ht1=uicontrol('style','listbox','units','norm','position',[.15,.35,.75,.45],'string',surfnames,'value',value,'max',2,'enable','off','callback',@(varargin)set(ht3,'enable',subsref({'off','on'},struct('type','{}','subs',{{1+all(ismember(surfnames(get(gcbo,'value')),{'lh.cortex.surf','lh.inflated.surf','lh.orig.surf','lh.pial.smoothed.surf','lh.pial.surf','lh.sphere.reg.surf','lh.sphere.surf','lh.white.surf','rh.cortex.surf','rh.inflated.surf','rh.orig.surf','rh.pial.smoothed.surf','rh.pial.surf','rh.sphere.reg.surf','rh.sphere.surf','rh.white.surf'}))}}))));
-            ht2=uicontrol('style','checkbox','units','norm','position',[.1,.8,.8,.1],'string','Project coordinates to closest surface:','value',0,'backgroundcolor','w','horizontalalignment','left','callback',@(varargin)set([ht1 ht3],'enable',subsref({'off','on'},struct('type','{}','subs',{{get(gcbo,'value')+1}}))));
+            ht2=uicontrol('style','checkbox','units','norm','position',[.1,.8,.8,.1],'string','Project coordinates to closest surface:','value',doprojecttoclosest,'backgroundcolor','w','horizontalalignment','left','callback',@(varargin)set([ht1 ht3],'enable',subsref({'off','on'},struct('type','{}','subs',{{get(gcbo,'value')+1}}))));
             uicontrol('style','pushbutton','string','OK','units','norm','position',[.1,.01,.38,.15],'callback','uiresume');
             uicontrol('style','pushbutton','string','Skip','units','norm','position',[.51,.01,.38,.15],'callback','delete(gcbf)');
-            uiwait(thfig);
+            if numel(varargin)==0, uiwait(thfig); end
             if ishandle(thfig)
                 if get(ht2,'value')
                     surfidx2=get(ht1,'value');
